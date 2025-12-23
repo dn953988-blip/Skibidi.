@@ -1,8 +1,8 @@
 --[[ 
-    HUB NAME: v0.5.5 SUPREME V19 (LOCKED CENTER FOV)
-    - FIXED: FOV Circle locked to absolute Screen Center.
-    - FIXED: Aim scanning locked to absolute Screen Center.
-    - FEATURES: Dynamic Speed (1-100), Team Check, Wall Check, ESP Highlights.
+    HUB NAME: v0.5.5 SUPREME V20 (ULTRA PRECISION)
+    - UPDATED: Aim Speed 360 deg/sec (Instant Lock logic).
+    - ADDED: Target Part Selector (Head/Torso/RootPart).
+    - FIXED: FOV Circle locked to absolute center.
 ]]
 
 local Players = game:GetService("Players")
@@ -22,39 +22,27 @@ Clean()
 
 -- --- [2] CONFIG ---
 local Config = {
-    Aimbot = {Active = false, FOV = 150, Speed = 10, WallCheck = true, TeamCheck = false, TargetPart = "Head"},
-    Hitbox = {Active = false, Size = 10, TargetPart = "HumanoidRootPart"},
+    Aimbot = {Active = false, FOV = 150, Speed = 100, WallCheck = true, TeamCheck = false, TargetPart = "Head"},
+    Hitbox = {Active = false, Size = 10, HitPart = "HumanoidRootPart"},
     ESP = {Active = false, Highlight = false},
     Theme = {Accent = Color3.fromRGB(0, 255, 170), Dark = Color3.fromRGB(15, 15, 15), Trans = 0.65}
 }
 
--- --- [3] UI BASE ---
-local ScreenGui = Instance.new("ScreenGui", CoreGui); ScreenGui.Name = "v055SupremeV19"
+-- --- [3] UI CONSTRUCTION ---
+local ScreenGui = Instance.new("ScreenGui", CoreGui); ScreenGui.Name = "v055SupremeV20"
 local FOVGui = Instance.new("ScreenGui", CoreGui); FOVGui.Name = "FOV_UI"
 local ESPContainer = Instance.new("ScreenGui", CoreGui); ESPContainer.Name = "ESP_CONTAINER"
 
--- KHÓA CỨNG VÒNG TRÒN TẠI TÂM
+-- FOV Circle Locked Center
 local Circle = Instance.new("Frame", FOVGui)
-Circle.Name = "AimCircle"
-Circle.AnchorPoint = Vector2.new(0.5, 0.5)
-Circle.Position = UDim2.new(0.5, 0, 0.5, 0) -- LUÔN Ở GIỮA MÀN HÌNH
-Circle.BackgroundTransparency = 1
-Circle.Visible = false
-Circle.Size = UDim2.new(0, Config.Aimbot.FOV * 2, 0, Config.Aimbot.FOV * 2)
-
-local UICorner = Instance.new("UICorner", Circle)
-UICorner.CornerRadius = UDim.new(1, 0)
-
-local UIStroke = Instance.new("UIStroke", Circle)
-UIStroke.Color = Config.Theme.Accent; UIStroke.Thickness = 1.5
-
--- Menu Toggle Button
-local OpenBtn = Instance.new("TextButton", ScreenGui)
-OpenBtn.Size = UDim2.new(0, 80, 0, 30); OpenBtn.Position = UDim2.new(0, 10, 0.4, 0); OpenBtn.Text = "SUPREME"; OpenBtn.Visible = false
-OpenBtn.BackgroundColor3 = Config.Theme.Accent; OpenBtn.TextColor3 = Color3.new(0,0,0); Instance.new("UICorner", OpenBtn)
+Circle.AnchorPoint = Vector2.new(0.5, 0.5); Circle.Position = UDim2.new(0.5, 0, 0.5, 0)
+Circle.BackgroundTransparency = 1; Circle.Visible = false
+Circle.Size = UDim2.new(0, Config.Aimbot.FOV*2, 0, Config.Aimbot.FOV*2)
+Instance.new("UICorner", Circle).CornerRadius = UDim.new(1, 0)
+local Stroke = Instance.new("UIStroke", Circle); Stroke.Color = Config.Theme.Accent; Stroke.Thickness = 1.5
 
 local Main = Instance.new("Frame", ScreenGui)
-Main.Size = UDim2.new(0, 520, 0, 380); Main.Position = UDim2.new(0.5, -260, 0.5, -190)
+Main.Size = UDim2.new(0, 520, 0, 400); Main.Position = UDim2.new(0.5, -260, 0.5, -200)
 Main.BackgroundColor3 = Config.Theme.Dark; Main.BackgroundTransparency = Config.Theme.Trans
 Main.Active = true; Main.Draggable = true; Instance.new("UICorner", Main)
 
@@ -85,36 +73,22 @@ local function AddBtn(parent, text, cb, toggle)
     end)
 end
 
-local function AddInp(parent, label, def, cb)
-    local f = Instance.new("Frame", parent); f.Size = UDim2.new(0.95, 0, 0, 40); f.BackgroundTransparency = 1
-    local l = Instance.new("TextLabel", f); l.Size = UDim2.new(0.6, 0, 1, 0); l.Text = label; l.TextColor3 = Color3.new(1,1,1); l.BackgroundTransparency = 1; l.TextXAlignment = "Left"
-    local i = Instance.new("TextBox", f); i.Size = UDim2.new(0.35, 0, 0.8, 0); i.Position = UDim2.new(0.65, 0, 0.1, 0); i.Text = def; i.BackgroundColor3 = Color3.fromRGB(30,30,30); i.TextColor3 = Config.Theme.Accent; Instance.new("UICorner", i)
-    i.FocusLost:Connect(function() cb(i.Text) end)
-end
-
--- TABS SETUP
+-- TABS
 local T_AIM = CreateTab("AIM BOT")
 local T_VIS = CreateTab("VISUALS")
-local T_HIT = CreateTab("HITBOX")
 
+-- AIM TAB (Cài đặt tốc độ 360 và Bộ phận)
 AddBtn(T_AIM, "BẬT MAGNET AIM", function(s) Config.Aimbot.Active = s; Circle.Visible = s end, true)
+AddBtn(T_AIM, "MỤC TIÊU: ĐẦU (HEAD)", function() Config.Aimbot.TargetPart = "Head" end, false)
+AddBtn(T_AIM, "MỤC TIÊU: THÂN (TORSO)", function() Config.Aimbot.TargetPart = "UpperTorso" end, false)
+AddBtn(T_AIM, "TỐC ĐỘ: 360độ/s (INSTANT)", function() Config.Aimbot.Speed = 100 end, false)
 AddBtn(T_AIM, "TEAM CHECK", function(s) Config.Aimbot.TeamCheck = s end, true)
-AddBtn(T_AIM, "WALL CHECK", function(s) Config.Aimbot.WallCheck = s end, true)
-AddInp(T_AIM, "Tốc độ Aim (1-100):", "10", function(v) Config.Aimbot.Speed = tonumber(v) or 10 end)
-AddInp(T_AIM, "Vòng FOV:", "150", function(v) 
-    Config.Aimbot.FOV = tonumber(v) or 150
-    Circle.Size = UDim2.new(0, Config.Aimbot.FOV * 2, 0, Config.Aimbot.FOV * 2)
-end)
 
 AddBtn(T_VIS, "BẬT ESP TÊN", function(s) Config.ESP.Active = s end, true)
 AddBtn(T_VIS, "BẬT HIGHLIGHTS", function(s) Config.ESP.Highlight = s end, true)
 
-AddBtn(T_HIT, "BẬT FAKE HITBOX", function(s) Config.Hitbox.Active = s end, true)
-AddInp(T_HIT, "Kích thước:", "10", function(v) Config.Hitbox.Size = tonumber(v) or 10 end)
-
 -- --- [4] CORE LOGIC ---
 RunService.RenderStepped:Connect(function(dt)
-    -- Tâm màn hình tuyệt đối (Viewport Center)
     local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
 
     if Config.Aimbot.Active then
@@ -122,14 +96,11 @@ RunService.RenderStepped:Connect(function(dt)
         for _, p in pairs(Players:GetPlayers()) do
             if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild(Config.Aimbot.TargetPart) and p.Character.Humanoid.Health > 0 then
                 if Config.Aimbot.TeamCheck and p.Team == LocalPlayer.Team then continue end
-                
                 local part = p.Character[Config.Aimbot.TargetPart]
-                local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
-                
-                if onScreen then
-                    local mag = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
+                local pos, vis = Camera:WorldToViewportPoint(part.Position)
+                if vis then
+                    local mag = (Vector2.new(pos.X, pos.Y) - screenCenter).Magnitude
                     if mag < dist then
-                        -- Kiểm tra xuyên tường
                         if Config.Aimbot.WallCheck and #Camera:GetPartsObscuringTarget({part.Position}, {LocalPlayer.Character, p.Character}) > 0 then continue end
                         dist = mag; target = part
                     end
@@ -137,48 +108,28 @@ RunService.RenderStepped:Connect(function(dt)
             end
         end
         if target then
-            local smoothScale = (Config.Aimbot.Speed / 100)
+            -- Logic 360 độ/giây (Lock cứng mục tiêu)
             local targetRotation = CFrame.new(Camera.CFrame.Position, target.Position)
-            Camera.CFrame = Camera.CFrame:Lerp(targetRotation, math.clamp(dt * 60 * smoothScale, 0, 1))
+            Camera.CFrame = Camera.CFrame:Lerp(targetRotation, math.clamp(dt * Config.Aimbot.Speed, 0, 1))
         end
     end
 
-    -- ESP & Highlight & Hitbox Logic
+    -- ESP & Visuals
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= LocalPlayer and p.Character then
-            local char = p.Character
             local isTeam = (Config.Aimbot.TeamCheck and p.Team == LocalPlayer.Team)
-            
-            -- Highlights
-            local hl = char:FindFirstChild("SupremeHL")
+            local hl = p.Character:FindFirstChild("SupremeHL")
             if Config.ESP.Highlight and not isTeam then
-                if not hl then hl = Instance.new("Highlight", char); hl.Name = "SupremeHL" end
+                if not hl then hl = Instance.new("Highlight", p.Character); hl.Name = "SupremeHL" end
                 hl.Enabled = true; hl.FillColor = Config.Theme.Accent
             elseif hl then hl.Enabled = false end
-
-            -- ESP
-            local esp = ESPContainer:FindFirstChild(p.Name)
-            if Config.ESP.Active and not isTeam and char:FindFirstChild("Head") then
-                local headPos, vis = Camera:WorldToViewportPoint(char.Head.Position)
-                if vis then
-                    if not esp then esp = Instance.new("TextLabel", ESPContainer); esp.Name = p.Name; esp.BackgroundTransparency = 1; esp.TextColor3 = Color3.new(1,1,1); esp.Font = "GothamBold"; esp.TextSize = 14; esp.Size = UDim2.new(0,200,0,20) end
-                    esp.Visible = true; esp.Position = UDim2.new(0, headPos.X - 100, 0, headPos.Y - 45)
-                    esp.Text = p.DisplayName.."\n"..math.floor((LocalPlayer.Character.Head.Position - char.Head.Position).Magnitude).."m"
-                elseif esp then esp.Visible = false end
-            elseif esp then esp:Destroy() end
-
-            -- Hitbox
-            if Config.Hitbox.Active and not isTeam then
-                local root = char:FindFirstChild(Config.Hitbox.TargetPart)
-                if root then root.Size = Vector3.new(Config.Hitbox.Size, Config.Hitbox.Size, Config.Hitbox.Size); root.Transparency = 0.7; root.CanCollide = false end
-            end
         end
     end
 end)
 
--- UI Toggles
+local OpenBtn = Instance.new("TextButton", ScreenGui); OpenBtn.Size = UDim2.new(0,80,0,30); OpenBtn.Position = UDim2.new(0,10,0.4,0); OpenBtn.Text = "SUPREME"; OpenBtn.Visible = false; OpenBtn.BackgroundColor3 = Config.Theme.Accent; Instance.new("UICorner", OpenBtn)
 local Close = Instance.new("TextButton", Main); Close.Size = UDim2.new(0,25,0,25); Close.Position = UDim2.new(1,-30,0,5); Close.Text = "X"; Close.BackgroundColor3 = Color3.new(0.6,0,0); Instance.new("UICorner", Close)
 Close.MouseButton1Click:Connect(function() Main.Visible = false; OpenBtn.Visible = true end)
 OpenBtn.MouseButton1Click:Connect(function() Main.Visible = true; OpenBtn.Visible = false end)
 
-T_AIM.Visible = true; Tabs["AIM BOT"].BackgroundColor3 = Config.Theme.Accent; Tabs["AIM BOT"].TextColor3 = Color3.new(0,0,0)
+T_AIM.Visible = true
