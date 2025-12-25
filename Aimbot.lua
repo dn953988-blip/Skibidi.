@@ -1,135 +1,179 @@
 --[[ 
-    HUB NAME: aimbot v5.8 (SMART ESP & ROTATING FOV)
-    - FIXED: ESP Toggle and Visibility.
-    - ADDED: Smart Health Bar & Distance.
-    - ADDED: Rotating FOV Circle.
-    - RESTORED: Target Part Selector.
+    HUYẾT v55.0: PRO-LOGIC (DEGREES PER SECOND)
+    - CONVERTED: Tốc độ Aim từ % sang Độ/Giây (Default: 50độ/s).
+    - LOGIC: Di chuyển tâm mượt mà với vận tốc không đổi.
+    - STABILITY: ESP Auto-Refresh & Single Target Lock.
+    - HUD: Y=90 (Dưới thanh máu mặc định).
 ]]
 
-repeat task.wait() until game:IsLoaded()
+local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local CoreGui = game:GetService("CoreGui")
+local Stats = game:GetService("Stats")
+local LP = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
-local LocalPlayer = Players.LocalPlayer
+
+-- 1. CLEANUP
+for _, v in pairs(CoreGui:GetChildren()) do
+    if v:IsA("ScreenGui") and (v.Name:find("Huyet") or v.Name:find("v5")) then v:Destroy() end
+end
 
 local Config = {
-    Aimbot = {Active = false, Speed = 0.15, FOV = 150, TargetPart = "Head", WallCheck = true, TeamCheck = true},
-    Player = {WS = 16, JP = 50, CFrameActive = false, CFSpeed = 0.8, Active = false},
-    ESP = {Active = false, Health = true, Distance = true},
-    Theme = {Accent = Color3.fromRGB(0, 255, 170), Dark = Color3.fromRGB(15, 15, 15)}
+    Aim = {Act = false, FOV = 150, Wall = true, Team = true, DegreesPerSec = 50, Part = "Head", OX = 0, OY = 0},
+    ESP = {Act = false, Health = false, Lines = false, Team = true}
 }
 
--- Cleanup old UI
-pcall(function() for _, v in pairs(CoreGui:GetChildren()) do if v.Name == "aimbot_v5_8" then v:Destroy() end end end)
+-- 2. FOV DRAWING
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Thickness = 1; FOVCircle.Color = Color3.fromRGB(0, 255, 150); FOVCircle.Transparency = 1; FOVCircle.Filled = false
 
-local ScreenGui = Instance.new("ScreenGui", CoreGui); ScreenGui.Name = "aimbot_v5_8"; ScreenGui.IgnoreGuiInset = true
+-- 3. INTERFACE
+local SG = Instance.new("ScreenGui", CoreGui); SG.Name = "v55_Huyet_Pro"; SG.IgnoreGuiInset = true
+local Main = Instance.new("Frame", SG); Main.AnchorPoint = Vector2.new(0.5, 0.5); Main.Position = UDim2.new(0.5, 0, 0.5, 0); Main.Size = UDim2.new(0, 280, 0, 440); Main.BackgroundColor3 = Color3.fromRGB(15, 15, 15); Main.Visible = false; Main.Active = true; Main.Draggable = true
+Instance.new("UICorner", Main); Instance.new("UIStroke", Main).Color = Color3.fromRGB(0, 255, 150)
 
--- --- [1] ROTATING FOV SYSTEM ---
-local FOV_Container = Instance.new("Frame", ScreenGui); FOV_Container.AnchorPoint = Vector2.new(0.5, 0.5); FOV_Container.Position = UDim2.new(0.5, 0, 0.5, 0); FOV_Container.Size = UDim2.new(0, Config.Aimbot.FOV*2, 0, Config.Aimbot.FOV*2); FOV_Container.BackgroundTransparency = 1; FOV_Container.Visible = false
-for i = 1, 16 do
-    local s = Instance.new("Frame", FOV_Container); s.Size = UDim2.new(0, 2, 0, 12); s.BackgroundColor3 = Config.Theme.Accent; s.BorderSizePixel = 0; s.AnchorPoint = Vector2.new(0.5, 0.5)
-    local rad = math.rad((i-1)*(360/16)); s.Position = UDim2.new(0.5 + math.cos(rad)*0.5, 0, 0.5 + math.sin(rad)*0.5, 0); s.Rotation = ((i-1)*(360/16)) + 90; Instance.new("UICorner", s)
+local Header = Instance.new("Frame", Main); Header.Size = UDim2.new(1, 0, 0, 25); Header.Position = UDim2.new(0, 0, 0, -28); Header.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+Instance.new("UICorner", Header); Instance.new("UIStroke", Header).Color = Color3.fromRGB(0, 255, 150)
+local MonTxt = Instance.new("TextLabel", Header); MonTxt.Size = UDim2.new(1, 0, 1, 0); MonTxt.BackgroundTransparency = 1; MonTxt.TextColor3 = Color3.new(1, 1, 1); MonTxt.Font = "GothamBold"; MonTxt.TextSize = 10; MonTxt.Text = "STABLE"
+
+local Cont = Instance.new("ScrollingFrame", Main); Cont.Position = UDim2.new(0, 10, 0, 10); Cont.Size = UDim2.new(1, -20, 1, -20); Cont.BackgroundTransparency = 1; Cont.CanvasSize = UDim2.new(0,0,0,0); Cont.AutomaticCanvasSize = "Y"; Cont.ScrollBarThickness = 2
+Instance.new("UIListLayout", Cont).Padding = UDim.new(0, 4)
+
+-- 4. HUD CỐ ĐỊNH (Y=90)
+local HUD = Instance.new("Frame", SG); HUD.Name = "HealthHUD_v55"; HUD.Size = UDim2.new(0, 200, 0, 40); HUD.Position = UDim2.new(0.5, -95, 0, 90); HUD.BackgroundTransparency = 1
+local HPLabel = Instance.new("TextLabel", HUD); HPLabel.Size = UDim2.new(1, 0, 0, 18); HPLabel.BackgroundTransparency = 1; HPLabel.TextColor3 = Color3.new(1, 1, 1); HPLabel.Font = "GothamBold"; HPLabel.TextSize = 12; HPLabel.TextXAlignment = "Left"; HPLabel.TextStrokeTransparency = 0.5
+local RegenLabel = Instance.new("TextLabel", HUD); RegenLabel.Size = UDim2.new(1, 0, 0, 12); RegenLabel.Position = UDim2.new(0, 0, 0, 16); RegenLabel.BackgroundTransparency = 1; RegenLabel.TextColor3 = Color3.fromRGB(0, 255, 150); RegenLabel.Font = "GothamBold"; RegenLabel.TextSize = 9; RegenLabel.TextXAlignment = "Left"
+
+-- Helpers
+local function AddT(txt, start, cb)
+    local b = Instance.new("TextButton", Cont); b.Size = UDim2.new(1, 0, 0, 26); b.Text = txt..": "..(start and "ON" or "OFF"); b.BackgroundColor3 = Color3.fromRGB(30, 30, 30); b.TextColor3 = Color3.new(1, 1, 1); b.Font = "GothamBold"; b.TextSize = 9; Instance.new("UICorner", b)
+    local s = start; b.MouseButton1Click:Connect(function() s = not s; b.Text = txt..": "..(s and "ON" or "OFF"); cb(s) end)
 end
 
--- --- [2] MENU CONSTRUCTION ---
-local Main = Instance.new("Frame", ScreenGui); Main.Size = UDim2.new(0, 310, 0, 380); Main.Position = UDim2.new(0.5, -155, 0.5, -190); Main.BackgroundColor3 = Config.Theme.Dark; Main.Visible = false; Main.Active = true; Main.Draggable = true; Instance.new("UICorner", Main); local Stroke = Instance.new("UIStroke", Main); Stroke.Color = Config.Theme.Accent
-
-local TabBtnH = Instance.new("Frame", Main); TabBtnH.Size = UDim2.new(1, 0, 0, 35); TabBtnH.BackgroundTransparency = 1; Instance.new("UIListLayout", TabBtnH).FillDirection = "Horizontal"
-local Pages = Instance.new("Frame", Main); Pages.Size = UDim2.new(1, -10, 1, -45); Pages.Position = UDim2.new(0, 5, 0, 40); Pages.BackgroundTransparency = 1
-
-local function CreatePage(name)
-    local p = Instance.new("ScrollingFrame", Pages); p.Name = name; p.Size = UDim2.new(1, 0, 1, 0); p.BackgroundTransparency = 1; p.Visible = false; p.ScrollBarThickness = 2; p.CanvasSize = UDim2.new(0, 0, 2.5, 0)
-    Instance.new("UIListLayout", p).Padding = UDim.new(0, 5)
-    local b = Instance.new("TextButton", TabBtnH); b.Size = UDim2.new(0.25, 0, 1, 0); b.Text = name; b.Font = "GothamBold"; b.TextSize = 8; b.BackgroundColor3 = Color3.fromRGB(25, 25, 25); b.TextColor3 = Color3.new(0.5, 0.5, 0.5); b.BorderSizePixel = 0
-    b.MouseButton1Click:Connect(function()
-        for _, pg in pairs(Pages:GetChildren()) do if pg:IsA("ScrollingFrame") then pg.Visible = false end end
-        p.Visible = true
-    end)
-    return p
-end
-
-local PageAim = CreatePage("Aim"); local PagePlayer = CreatePage("Player"); local PageESP = CreatePage("ESP"); local PageBoost = CreatePage("Boost")
-PageAim.Visible = true
-
--- UI Helpers
-local function AddToggle(p, txt, default, cb)
-    local act = default; local b = Instance.new("TextButton", p); b.Size = UDim2.new(0.95, 0, 0, 32); b.Text = txt..": "..(act and "ON" or "OFF"); b.BackgroundColor3 = act and Config.Theme.Accent or Color3.fromRGB(35, 35, 35); b.TextColor3 = act and Color3.new(0,0,0) or Color3.new(1,1,1); Instance.new("UICorner", b)
-    b.MouseButton1Click:Connect(function() act = not act; cb(act); b.Text = txt..": "..(act and "ON" or "OFF"); b.BackgroundColor3 = act and Config.Theme.Accent or Color3.fromRGB(35,35,35); b.TextColor3 = act and Color3.new(0,0,0) or Color3.new(1,1,1) end)
-end
-
-local function AddInput(p, label, default, cb)
-    local f = Instance.new("Frame", p); f.Size = UDim2.new(0.95, 0, 0, 32); f.BackgroundTransparency = 1
-    local l = Instance.new("TextLabel", f); l.Size = UDim2.new(0.6, 0, 1, 0); l.Text = label; l.TextColor3 = Color3.new(0.8,0.8,0.8); l.TextXAlignment = "Left"; l.BackgroundTransparency = 1; l.Font = "Gotham"; l.TextSize = 10
-    local i = Instance.new("TextBox", f); i.Size = UDim2.new(0.3, 0, 0.8, 0); i.Position = UDim2.new(0.7, 0, 0.1, 0); i.Text = tostring(default); i.BackgroundColor3 = Color3.fromRGB(40,40,40); i.TextColor3 = Config.Theme.Accent; Instance.new("UICorner", i)
+local function AddI(label, default, cb)
+    local f = Instance.new("Frame", Cont); f.Size = UDim2.new(1, 0, 0, 26); f.BackgroundTransparency = 1
+    local l = Instance.new("TextLabel", f); l.Size = UDim2.new(0.5, 0, 1, 0); l.Text = label; l.TextColor3 = Color3.new(0.7,0.7,0.7); l.BackgroundTransparency = 1; l.TextXAlignment = "Left"; l.Font = "GothamBold"; l.TextSize = 8
+    local i = Instance.new("TextBox", f); i.Size = UDim2.new(0.4, 0, 0.8, 0); i.Position = UDim2.new(0.6, 0, 0.1, 0); i.Text = tostring(default); i.BackgroundColor3 = Color3.fromRGB(40,40,40); i.TextColor3 = Color3.new(0, 1, 0.8); i.Font = "GothamBold"; i.TextSize = 9; Instance.new("UICorner", i)
     i.FocusLost:Connect(function() cb(i.Text) end)
 end
 
--- --- [3] CONTENT ---
-AddToggle(PageAim, "Master Aimbot", false, function(s) Config.Aimbot.Active = s; FOV_Container.Visible = s end)
-local PartBtn = Instance.new("TextButton", PageAim); PartBtn.Size = UDim2.new(0.95,0,0,32); PartBtn.Text = "Target Part: Head"; PartBtn.BackgroundColor3 = Color3.fromRGB(45,45,45); PartBtn.TextColor3 = Color3.new(1,1,1); Instance.new("UICorner", PartBtn)
-PartBtn.MouseButton1Click:Connect(function()
-    if Config.Aimbot.TargetPart == "Head" then Config.Aimbot.TargetPart = "HumanoidRootPart"; PartBtn.Text = "Target Part: Torso"
-    else Config.Aimbot.TargetPart = "Head"; PartBtn.Text = "Target Part: Head" end
-end)
-AddInput(PageAim, "Aim Speed", 15, function(v) Config.Aimbot.Speed = (tonumber(v) or 15)/100 end)
-AddInput(PageAim, "FOV Size", 150, function(v) Config.Aimbot.FOV = tonumber(v) or 150; FOV_Container.Size = UDim2.new(0, Config.Aimbot.FOV*2, 0, Config.Aimbot.FOV*2) end)
+-- --- MENU CONTENT ---
+AddT("AIMBOT", false, function(s) Config.Aim.Act = s end)
+AddT("TEAM CHECK", true, function(s) Config.Aim.Team = s end)
+AddT("WALL CHECK", true, function(s) Config.Aim.Wall = s end)
+AddI("ĐỘ / GIÂY", 50, function(v) Config.Aim.DegreesPerSec = tonumber(v) or 50 end)
+AddI("BÁN KÍNH FOV", 150, function(v) Config.Aim.FOV = tonumber(v) or 150 end)
+AddI("OFFSET X", 0, function(v) Config.Aim.OX = tonumber(v) or 0 end)
+AddI("OFFSET Y", 0, function(v) Config.Aim.OY = tonumber(v) or 0 end)
+AddT("ESP INFO", false, function(s) Config.ESP.Act = s end)
+AddT("ESP % MÁU", false, function(s) Config.ESP.Health = s end)
+AddT("ESP LINE", false, function(s) Config.ESP.Lines = s end)
 
-AddInput(PagePlayer, "WalkSpeed", 16, function(v) Config.Player.WS = tonumber(v) or 16 end)
-AddToggle(PagePlayer, "Enable WalkSpeed", false, function(s) Config.Player.Active = s end)
-AddInput(PagePlayer, "Jump Power", 50, function(v) Config.Player.JP = tonumber(v) or 50 end)
-AddToggle(PagePlayer, "Enable Jump", false, function(s) if s then LocalPlayer.Character.Humanoid.JumpPower = Config.Player.JP end end)
+-- --- CORE FUNCTIONS ---
+local function getAngleBetween(cf1, cf2)
+    local unit1 = cf1.LookVector
+    local unit2 = (cf2.Position - cf1.Position).Unit
+    return math.acos(math.clamp(unit1:Dot(unit2), -1, 1))
+end
 
-AddToggle(PageESP, "Master ESP", false, function(s) Config.ESP.Active = s end)
-AddToggle(PageESP, "Show Health Bar", true, function(s) Config.ESP.Health = s end)
-AddToggle(PageESP, "Show Distance", true, function(s) Config.ESP.Distance = s end)
+-- --- MAIN LOGIC LOOP ---
+local lastHP, lastTick = 0, tick()
 
--- --- [4] CORE LOOP ---
-RunService.RenderStepped:Connect(function()
-    -- Aim Logic
-    if Config.Aimbot.Active then
-        local target = nil; local minMag = Config.Aimbot.FOV
-        for _, p in pairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild(Config.Aimbot.TargetPart) and p.Character.Humanoid.Health > 0 then
-                if Config.Aimbot.TeamCheck and p.Team == LocalPlayer.Team then continue end
-                local pos, vis = Camera:WorldToViewportPoint(p.Character[Config.Aimbot.TargetPart].Position)
-                if vis then
-                    local mag = (Vector2.new(pos.X, pos.Y) - Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)).Magnitude
-                    if mag < minMag then target = p.Character[Config.Aimbot.TargetPart]; minMag = mag end
-                end
-            end
+RunService.RenderStepped:Connect(function(dt)
+    FOVCircle.Visible = Config.Aim.Act and not Main.Visible
+    FOVCircle.Radius = Config.Aim.FOV; FOVCircle.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
+    MonTxt.Text = string.format("FPS: %d | PING: %dms", math.floor(1/dt), math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue()))
+
+    -- HUD LOCAL PLAYER
+    if LP.Character and LP.Character:FindFirstChild("Humanoid") then
+        local hum = LP.Character.Humanoid
+        if tick() - lastTick >= 1 then
+            RegenLabel.Text = string.format("REGEN: %+.2f%% / s", ((hum.Health - lastHP)/hum.MaxHealth)*100)
+            lastHP, lastTick = hum.Health, tick()
         end
-        if target then Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, target.Position), Config.Aimbot.Speed) end
-        FOV_Container.Rotation = FOV_Container.Rotation + 2 -- Quay tâm
+        HPLabel.Text = string.format("%.2f / %.0f HP", hum.Health, hum.MaxHealth)
+        HPLabel.TextColor3 = Color3.fromHSV((math.clamp(hum.Health/hum.MaxHealth, 0, 1) * 0.35), 1, 1)
     end
 
-    -- Player Logic
-    if Config.Player.Active and LocalPlayer.Character then LocalPlayer.Character.Humanoid.WalkSpeed = Config.Player.WS end
-
-    -- Smart ESP Logic
-    for _, v in pairs(ScreenGui:GetChildren()) do if v.Name == "ESP_M" then v:Destroy() end end
-    if Config.ESP.Active then
+    -- AIMBOT (CONSTANT SPEED MODE)
+    if Config.Aim.Act then
+        local targetPart, shortestDist = nil, Config.Aim.FOV
         for _, p in pairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("Head") and p.Character.Humanoid.Health > 0 then
-                local headPos, headVis = Camera:WorldToViewportPoint(p.Character.Head.Position)
-                if headVis then
-                    local dist = math.floor((LocalPlayer.Character.Head.Position - p.Character.Head.Position).Magnitude)
-                    local mainFrame = Instance.new("Frame", ScreenGui); mainFrame.Name = "ESP_M"; mainFrame.Size = UDim2.new(0, 100, 0, 40); mainFrame.Position = UDim2.new(0, headPos.X - 50, 0, headPos.Y - 60); mainFrame.BackgroundTransparency = 1
-                    
-                    local nameL = Instance.new("TextLabel", mainFrame); nameL.Size = UDim2.new(1, 0, 0, 15); nameL.Text = p.Name .. (Config.ESP.Distance and " ["..dist.."m]" or ""); nameL.TextColor3 = Color3.new(1,1,1); nameL.Font = "GothamBold"; nameL.TextSize = 10; nameL.BackgroundTransparency = 1; nameL.TextStrokeTransparency = 0
-                    
-                    if Config.ESP.Health then
-                        local hBarBg = Instance.new("Frame", mainFrame); hBarBg.Size = UDim2.new(0.8, 0, 0, 3); hBarBg.Position = UDim2.new(0.1, 0, 0, 18); hBarBg.BackgroundColor3 = Color3.new(0,0,0); hBarBg.BorderSizePixel = 0
-                        local hBar = Instance.new("Frame", hBarBg); hBar.Size = UDim2.new(p.Character.Humanoid.Health/p.Character.Humanoid.MaxHealth, 0, 1, 0); hBar.BackgroundColor3 = Color3.new(0,1,0); hBar.BorderSizePixel = 0
+            if p ~= LP and p.Character and p.Character:FindFirstChild(Config.Aim.Part) and p.Character.Humanoid.Health > 0 then
+                if not Config.Aim.Team or p.TeamColor ~= LP.TeamColor then
+                    local part = p.Character[Config.Aim.Part]
+                    local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
+                    if onScreen then
+                        local mag = (Vector2.new(pos.X, pos.Y) - Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)).Magnitude
+                        if mag < shortestDist then
+                            local hit = workspace:FindPartOnRayWithIgnoreList(Ray.new(Camera.CFrame.Position, (part.Position - Camera.CFrame.Position).Unit * 500), {LP.Character, p.Character})
+                            if not Config.Aim.Wall or not hit then
+                                shortestDist, targetPart = mag, part
+                            end
+                        end
                     end
                 end
             end
         end
+        
+        if targetPart then
+            local aimPos = targetPart.Position + Vector3.new(Config.Aim.OX/10, Config.Aim.OY/10, 0)
+            local targetCF = CFrame.new(Camera.CFrame.Position, aimPos)
+            local angle = getAngleBetween(Camera.CFrame, targetCF)
+            local maxAngle = math.rad(Config.Aim.DegreesPerSec) * dt
+            
+            if angle > 0 then
+                local ratio = math.min(maxAngle / angle, 1)
+                Camera.CFrame = Camera.CFrame:Lerp(targetCF, ratio)
+            end
+        end
+    end
+
+    -- ESP SYSTEM (AUTO RE-SCAN)
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LP then
+            local char = p.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            local guiName, lineName = "v55_ESP_"..p.Name, "v55_Line_"..p.Name
+
+            if char and hrp and char.Humanoid.Health > 0 and (not Config.ESP.Team or p.TeamColor ~= LP.TeamColor) then
+                -- Billboard
+                local gui = CoreGui:FindFirstChild(guiName)
+                if Config.ESP.Act or Config.ESP.Health then
+                    if not gui then
+                        gui = Instance.new("BillboardGui", CoreGui); gui.Name = guiName; gui.AlwaysOnTop = true; gui.Size = UDim2.new(0,80,0,45)
+                        local l = Instance.new("TextLabel", gui); l.Size = UDim2.new(1,0,1,0); l.BackgroundTransparency = 1; l.TextColor3 = Color3.new(1,1,1); l.Font = "GothamBold"; l.TextSize = 8; l.TextStrokeTransparency = 0
+                    end
+                    gui.Adornee = hrp; gui.Enabled = true
+                    gui.TextLabel.Text = (Config.ESP.Act and p.DisplayName or "")..(Config.ESP.Health and "\n"..math.floor(char.Humanoid.Health).."%" or "")
+                elseif gui then gui:Destroy() end
+
+                -- Line
+                local line = SG:FindFirstChild(lineName)
+                if Config.ESP.Lines then
+                    local pos, onS = Camera:WorldToViewportPoint(hrp.Position)
+                    if onS then
+                        if not line then line = Instance.new("Frame", SG); line.Name = lineName; line.BorderSizePixel = 0; line.BackgroundColor3 = Color3.new(0,1,1); line.AnchorPoint = Vector2.new(0.5, 0.5) end
+                        local start = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
+                        local targetPos = Vector2.new(pos.X, pos.Y)
+                        line.Size = UDim2.new(0, (targetPos - start).Magnitude, 0, 1)
+                        line.Position = UDim2.new(0, (start.X + targetPos.X)/2, 0, (start.Y + targetPos.Y)/2)
+                        line.Rotation = math.deg(math.atan2(targetPos.Y - start.Y, targetPos.X - start.X)); line.Visible = true
+                    elseif line then line.Visible = false end
+                elseif line then line:Destroy() end
+            else
+                if CoreGui:FindFirstChild(guiName) then CoreGui[guiName]:Destroy() end
+                if SG:FindFirstChild(lineName) then SG[lineName]:Destroy() end
+            end
+        end
     end
 end)
 
--- Buttons
-local M_B = Instance.new("TextButton", ScreenGui); M_B.Size = UDim2.new(0, 45, 0, 45); M_B.Position = UDim2.new(0, 20, 0, 160); M_B.Text = "M"; M_B.BackgroundColor3 = Color3.fromRGB(30, 30, 30); M_B.TextColor3 = Color3.new(1, 1, 1); Instance.new("UICorner", M_B).CornerRadius = UDim.new(1, 0)
-local A_B = Instance.new("TextButton", ScreenGui); A_B.Size = UDim2.new(0, 45, 0, 45); A_B.Position = UDim2.new(0, 20, 0, 215); A_B.Text = "A"; A_B.BackgroundColor3 = Color3.fromRGB(200, 0, 0); A_B.TextColor3 = Color3.new(1, 1, 1); Instance.new("UICorner", A_B).CornerRadius = UDim.new(1, 0)
-M_B.MouseButton1Click:Connect(function() Main.Visible = not Main.Visible end)
-A_B.MouseButton1Click:Connect(function() Config.Aimbot.Active = not Config.Aimbot.Active; FOV_Container.Visible = Config.Aimbot.Active; A_B.BackgroundColor3 = Config.Aimbot.Active and Config.Theme.Accent or Color3.fromRGB(200, 0, 0) end)
+-- --- BUTTONS ---
+local QA = Instance.new("TextButton", SG); QA.Size = UDim2.new(0, 80, 0, 30); QA.Position = UDim2.new(0, 10, 0, 200); QA.Text = "AIM: OFF"; QA.BackgroundColor3 = Color3.fromRGB(150,0,0); QA.TextColor3 = Color3.new(1,1,1); Instance.new("UICorner", QA); QA.Active = true; QA.Draggable = true
+QA.MouseButton1Click:Connect(function() 
+    Config.Aim.Act = not Config.Aim.Act; QA.Text = "AIM: "..(Config.Aim.Act and "ON" or "OFF"); QA.BackgroundColor3 = Config.Aim.Act and Color3.fromRGB(0,150,0) or Color3.fromRGB(150,0,0) 
+end)
+
+local MB = Instance.new("TextButton", SG); MB.Size = UDim2.new(0, 30, 0, 30); MB.Position = UDim2.new(0, 10, 0, 165); MB.Text = "M"; MB.BackgroundColor3 = Color3.fromRGB(30,30,30); MB.TextColor3 = Color3.new(1,1,1); Instance.new("UICorner", MB); MB.Active = true; MB.Draggable = true
+MB.MouseButton1Click:Connect(function() Main.Visible = not Main.Visible end)
